@@ -8,6 +8,7 @@ import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.RegistryKeys;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -18,6 +19,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class ExplosiveChests implements ModInitializer {
+	DestroyBlocks destroyBlocks;
 	public static final String MOD_ID = "explosive-chests";
 	public static final Queue<BlockPos> destructionQueue = new ConcurrentLinkedQueue<>();
 
@@ -41,5 +43,6 @@ public class ExplosiveChests implements ModInitializer {
 	public void onInitialize() {
 
 		LOGGER.info("Hello Fabric world!");
+		this.destroyBlocks = new DestroyBlocks();
 	}
 }

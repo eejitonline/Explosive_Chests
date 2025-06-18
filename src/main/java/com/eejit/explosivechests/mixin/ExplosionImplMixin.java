@@ -1,5 +1,6 @@
 package com.eejit.explosivechests.mixin;
 
+import com.eejit.explosivechests.DestroyBlocks;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
@@ -7,14 +8,21 @@ import net.minecraft.fluid.FluidState;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.profiler.Profiler;
+import net.minecraft.util.profiler.Profilers;
+import net.minecraft.world.event.GameEvent;
 import net.minecraft.world.explosion.Explosion;
 import net.minecraft.world.explosion.ExplosionBehavior;
 import net.minecraft.world.explosion.ExplosionImpl;
 import org.jetbrains.annotations.Nullable;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Mutable;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.HashSet;
@@ -26,9 +34,13 @@ import java.util.Set;
 public abstract class ExplosionImplMixin implements Explosion {
 
     ExplosionImpl impl = (ExplosionImpl)((Object)this);
+    @Shadow @Final @Mutable
     private float power;
+    @Shadow @Final @Mutable
     private ServerWorld world;
+    @Shadow @Final @Mutable
     private Vec3d pos;
+    @Shadow @Final @Mutable
     private ExplosionBehavior behavior;
 
     @Shadow
@@ -79,6 +91,8 @@ public abstract class ExplosionImplMixin implements Explosion {
 
                 if (h > 0.0F && this.behavior.canDestroyBlock(this, this.world, blockPos, blockState, h)) {
                     set.add(blockPos);
+                    DestroyBlocks.blocks.add(blockPos);
+                    DestroyBlocks.blockExplosions.add(impl);
                 }
 
                 m += dx * 0.3;
@@ -86,7 +100,12 @@ public abstract class ExplosionImplMixin implements Explosion {
                 o += dz * 0.3;
             }
         }
-
+        DestroyBlocks.blockCollectionComplete = true;
         cir.setReturnValue(new ObjectArrayList<>(set));
+    }
+
+    @Redirect(method = "explode", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/explosion/ExplosionImpl;destroyBlocks(Ljava/util/List;)V"))
+    private void skip(ExplosionImpl instance, List<BlockPos> positions){
+
     }
 }
