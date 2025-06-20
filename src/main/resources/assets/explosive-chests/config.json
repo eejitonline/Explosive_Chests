@@ -1,0 +1,8 @@
+{
+  "dropItems": [
+    "minecraft:diamond",
+    "minecraft:emerald",
+    "minecraft:lapis_lazuli"
+  ],
+  "dropMode" : "ListedItemsOnly"
+}
