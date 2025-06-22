@@ -2,7 +2,11 @@
   "dropItems": [
     "minecraft:diamond",
     "minecraft:emerald",
-    "minecraft:lapis_lazuli"
+    "minecraft:lapis_lazuli",
+    "minecraft:raw_iron",
+    "minecraft:raw_gold",
+    "minecraft:redstone",
+    "minecraft:coal"
   ],
   "dropMode" : "ListedItemsOnly"
 }
