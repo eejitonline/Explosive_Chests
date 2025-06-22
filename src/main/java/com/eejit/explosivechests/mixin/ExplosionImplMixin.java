@@ -1,5 +1,6 @@
 package com.eejit.explosivechests.mixin;
 
+import com.eejit.explosivechests.DestroyBlocks;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
@@ -11,24 +12,29 @@ import net.minecraft.world.explosion.Explosion;
 import net.minecraft.world.explosion.ExplosionBehavior;
 import net.minecraft.world.explosion.ExplosionImpl;
 import org.jetbrains.annotations.Nullable;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Mutable;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.*;
 
 @Mixin(ExplosionImpl.class)
-public abstract class ExplosionImplMixin implements Explosion {
+public abstract class ExplosionImplMixin implements Explosion{
 
     ExplosionImpl impl = (ExplosionImpl)((Object)this);
+    @Shadow @Final @Mutable
     private float power;
+    @Shadow @Final @Mutable
     private ServerWorld world;
+    @Shadow @Final @Mutable
     private Vec3d pos;
+    @Shadow @Final @Mutable
     private ExplosionBehavior behavior;
 
     @Shadow
@@ -40,7 +46,7 @@ public abstract class ExplosionImplMixin implements Explosion {
 
 
     @Inject(method = "getBlocksToDestroy", at = @At(value = "HEAD"), cancellable = true)
-    private void onGetBlocksToDestroy(CallbackInfoReturnable<List<BlockPos>> cir) {
+    private void onGetBlocksToDestroy(CallbackInfoReturnable<List<BlockPos>> cir) throws InterruptedException {
         if(impl != null) {
             this.power = impl.getPower();
             this.world = impl.getWorld();
@@ -49,25 +55,59 @@ public abstract class ExplosionImplMixin implements Explosion {
         }
 
         cir.cancel();
-        Set<BlockPos> set = new HashSet();
-        int numRays = Math.min(16000, Math.max(1000, (int)(this.power * 300)));
+        ConcurrentLinkedQueue<List<BlockPos>> allRayPaths = new ConcurrentLinkedQueue<>();
+        Set<BlockPos> set = ConcurrentHashMap.newKeySet();
+        ThreadLocal<Random> threadRandom = ThreadLocal.withInitial(() -> new Random());
+        int numRays = Math.min(14000, Math.max(750, (int)(this.power * 250)));
+        int numThreads = 10;
+        int start = 0;
+
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+
         System.out.println(numRays);
 
-        for (int i = 0; i < numRays; ++i) {
-            double theta = this.world.random.nextDouble() * 2.0 * Math.PI; // azimuth
-            double phi = Math.acos(2.0 * this.world.random.nextDouble() - 1.0); // polar angle
+        int chunkSize = (numRays-start+1)/numThreads;
 
-            double dx = Math.sin(phi) * Math.cos(theta);
-            double dy = Math.cos(phi);
-            double dz = Math.sin(phi) * Math.sin(theta);
+        for(int i = 0; i < numThreads; ++i) {
+            int chunkStart = start + i*chunkSize;
+            int chunkEnd = (i == numThreads - 1) ? numRays : chunkStart + chunkSize - 1;
 
-            float h = this.power * (0.7F + this.world.random.nextFloat() * 0.6F);
-            double m = this.pos.x;
-            double n = this.pos.y;
-            double o = this.pos.z;
+            executor.submit(() -> {
+                Random rand = threadRandom.get();
+                
+                for (int j = chunkStart; j <= chunkEnd; ++j) {
+                    List<BlockPos> path = new ArrayList<>();
+                    double theta = rand.nextDouble() * 2.0 * Math.PI; // azimuth
+                    double phi = Math.acos(2.0 * rand.nextDouble() - 1.0); // polar angle
 
-            for (float p = 0.3F; h > 0.0F; h -= 0.22500001F) {
-                BlockPos blockPos = BlockPos.ofFloored(m, n, o);
+                    double dx = Math.sin(phi) * Math.cos(theta);
+                    double dy = Math.cos(phi);
+                    double dz = Math.sin(phi) * Math.sin(theta);
+
+                    float h = this.power * (0.7F + rand.nextFloat() * 0.15F);
+                    double m = this.pos.x;
+                    double n = this.pos.y;
+                    double o = this.pos.z;
+
+                    for (float p = 0.3F; h > 0.0F; h -= 0.22500001F) {
+                        BlockPos blockPos = BlockPos.ofFloored(m, n, o);
+                        path.add(blockPos);
+
+                        m += dx * 0.3;
+                        n += dy * 0.3;
+                        o += dz * 0.3;
+                    }
+
+                    allRayPaths.add(path);
+                }
+            });
+        }
+        executor.shutdown();
+        executor.awaitTermination(1, TimeUnit.MINUTES);
+
+        for (List<BlockPos> path : allRayPaths) {
+            float h = this.power * (0.7F + world.random.nextFloat() * 0.15F);; // or recompute if needed
+            for (BlockPos blockPos : path) {
                 if (!this.world.isInBuildLimit(blockPos)) break;
 
                 BlockState blockState = this.world.getBlockState(blockPos);
@@ -77,16 +117,26 @@ public abstract class ExplosionImplMixin implements Explosion {
                     h -= (optional.get() + 0.3F) * 0.3F;
                 }
 
-                if (h > 0.0F && this.behavior.canDestroyBlock(this, this.world, blockPos, blockState, h)) {
-                    set.add(blockPos);
-                }
+                if (h <= 0.0F) break;
 
-                m += dx * 0.3;
-                n += dy * 0.3;
-                o += dz * 0.3;
+                if (this.behavior.canDestroyBlock(this, this.world, blockPos, blockState, h)) {
+                    if (set.add(blockPos)) {
+                        //if(DestroyBlocks.blocks.contains(blockPos)) continue;
+
+                        DestroyBlocks.blocks.add(blockPos);
+                        DestroyBlocks.blockExplosions.add(this);
+                    }
+                }
             }
         }
 
+        System.out.println("explosion calculated");
+        DestroyBlocks.blockCollectionComplete = true;
         cir.setReturnValue(new ObjectArrayList<>(set));
+    }
+
+    @Redirect(method = "explode", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/explosion/ExplosionImpl;destroyBlocks(Ljava/util/List;)V"))
+    private void skip(ExplosionImpl instance, List<BlockPos> positions){
+
     }
 }
