@@ -43,13 +43,14 @@ public class DestroyBlocks {
                         continue; // or break, or handle gracefully
                     }
                     explosion.getWorld().getBlockState(blockPos).onExploded((ServerWorld) explosion.getWorld(), blockPos, explosion, (item, pos) -> {
-                        if(config.dropMode == "None"){
+                        if(config.dropMode.equals("None")){
                             return;
                         }
-                        if(config.dropMode == "All") {
+                        if(config.dropMode.equals("All")) {
                             Block.dropStack(explosion.getWorld(), pos, item);
                         }
-                        if(config.dropMode == "ListedItemsOnly"){
+                        if(config.dropMode.equals("ListedItemsOnly")){
+                            //System.out.println(config.dropItems.contains(Registries.ITEM.getId(item.getItem()).toString()));
                             if(config.dropItems.contains(Registries.ITEM.getId(item.getItem()).toString())) {
                                 Block.dropStack(explosion.getWorld(), pos, item);
                             }

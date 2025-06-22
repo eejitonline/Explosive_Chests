@@ -58,7 +58,7 @@ public abstract class ExplosionImplMixin implements Explosion{
         ConcurrentLinkedQueue<List<BlockPos>> allRayPaths = new ConcurrentLinkedQueue<>();
         Set<BlockPos> set = ConcurrentHashMap.newKeySet();
         ThreadLocal<Random> threadRandom = ThreadLocal.withInitial(() -> new Random());
-        int numRays = Math.min(16000, Math.max(400, (int)(this.power * 75)));
+        int numRays = Math.min(14000, Math.max(750, (int)(this.power * 250)));
         int numThreads = 10;
         int start = 0;
 
@@ -84,7 +84,7 @@ public abstract class ExplosionImplMixin implements Explosion{
                     double dy = Math.cos(phi);
                     double dz = Math.sin(phi) * Math.sin(theta);
 
-                    float h = this.power * (0.7F + rand.nextFloat() * 0.6F);
+                    float h = this.power * (0.7F + rand.nextFloat() * 0.15F);
                     double m = this.pos.x;
                     double n = this.pos.y;
                     double o = this.pos.z;
@@ -106,7 +106,7 @@ public abstract class ExplosionImplMixin implements Explosion{
         executor.awaitTermination(1, TimeUnit.MINUTES);
 
         for (List<BlockPos> path : allRayPaths) {
-            float h = this.power * (0.7F + world.random.nextFloat() * 0.6F);; // or recompute if needed
+            float h = this.power * (0.7F + world.random.nextFloat() * 0.15F);; // or recompute if needed
             for (BlockPos blockPos : path) {
                 if (!this.world.isInBuildLimit(blockPos)) break;
 
@@ -121,6 +121,8 @@ public abstract class ExplosionImplMixin implements Explosion{
 
                 if (this.behavior.canDestroyBlock(this, this.world, blockPos, blockState, h)) {
                     if (set.add(blockPos)) {
+                        //if(DestroyBlocks.blocks.contains(blockPos)) continue;
+
                         DestroyBlocks.blocks.add(blockPos);
                         DestroyBlocks.blockExplosions.add(this);
                     }
