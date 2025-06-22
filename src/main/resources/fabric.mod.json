@@ -3,9 +3,9 @@
 	"id": "explosive-chests",
 	"version": "${version}",
 	"name": "Explosive Chests",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"description": "A mod for bigger booms, make your own explosives using chests.",
 	"authors": [
-		"Me!"
+		"Eejit"
 	],
 	"contact": {
 		"homepage": "https://fabricmc.net/",
